@@ -22,7 +22,6 @@ class MQTTDeepInspector:
                 "severity": "Critical",
             }
 
-        # Check for command injection payloads.
         suspicious_keywords = [";", "&&", "|", "rm -rf", "<script>"]
         if any(kw in payload_str for kw in suspicious_keywords):
             return {

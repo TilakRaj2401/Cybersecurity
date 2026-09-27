@@ -5,7 +5,14 @@ available in the environment, the tests will be skipped to avoid
 import-time failures in CI or developer setups.
 """
 
+import os
+import sys
 import unittest
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+BACKEND_DIR = os.path.join(PROJECT_ROOT, 'Backend')
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
 
 try:
     from signature_engine import SignatureDetectionEngine
@@ -29,6 +36,21 @@ class TestSignatureEngine(unittest.TestCase):
         result = self.engine.inspect(packet)
         self.assertIsNotNone(result)
         self.assertEqual(result['rule_id'], 'SIG-101')
+
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_payload_signature_match(self):
+        """A packet payload containing a known bad pattern should trigger a signature alert."""
+        packet = {
+            'protocol': 'tcp',
+            'src_port': 50000,
+            'dst_port': 80,
+            'src_ip': '10.0.0.5',
+            'dst_ip': '10.0.0.1',
+            'payload': 'telnet login attempt with admin credentials',
+        }
+        result = self.engine.inspect(packet)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['rule_id'], 'SIG-200')
 
     @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
     def test_all_configured_signatures_are_detectable(self):

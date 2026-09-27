@@ -29,6 +29,22 @@ class TestMLEngine(unittest.TestCase):
         self.assertIn('is_anomaly', res)
         self.assertIn('anomaly_score', res)
 
+    def test_training_from_dataframe(self):
+        """A prepared dataset frame should be usable for model training."""
+        detector = AnomalyDetector()
+        dataset = np.array([
+            [1, 64, 80, 5000, 0.2, 2.0],
+            [1, 128, 443, 7000, 0.3, 2.5],
+            [2, 96, 53, 2000, 0.1, 1.5],
+            [1, 74, 22, 1200, 0.2, 1.8],
+            [2, 80, 161, 1800, 0.1, 1.7],
+        ], dtype=np.float32)
+
+        detector.train_from_dataframe(dataset)
+        res = detector.predict(dataset[0:1])
+        self.assertIn('is_anomaly', res)
+        self.assertIn('anomaly_score', res)
+
 
 if __name__ == '__main__':
     unittest.main()
