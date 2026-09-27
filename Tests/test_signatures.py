@@ -30,6 +30,25 @@ class TestSignatureEngine(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result['rule_id'], 'SIG-101')
 
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_all_configured_signatures_are_detectable(self):
+        """Every configured protocol and port pair should produce an alert."""
+        self.assertEqual(len(self.engine.signatures), 30)
+
+        for index, ((protocol, port), rule) in enumerate(self.engine.signatures.items()):
+            with self.subTest(rule_id=rule['rule_id']):
+                packet = {
+                    'protocol': protocol,
+                    'src_port': 40000 + index,
+                    'dst_port': port,
+                    'src_ip': '10.0.0.5',
+                    'dst_ip': '10.0.0.1',
+                }
+                result = self.engine.inspect(packet)
+                self.assertIsNotNone(result)
+                self.assertEqual(result['rule_id'], rule['rule_id'])
+                self.assertTrue(self.engine.has_known_signature(packet))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "c:/Users/rajt4/Cybersecurity/.venv/Scripts/python.exe",
+  "python.analysis.extraPaths": [
+    "c:/Users/rajt4/Cybersecurity/Backend"
+  ]
+}
