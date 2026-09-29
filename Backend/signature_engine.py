@@ -314,3 +314,18 @@ class SignatureDetectionEngine:
         protocol = str(packet.get('protocol', '')).lower()
         return any((protocol, port) in self.signatures
         for port in (packet.get('src_port'), packet.get('dst_port')))
+
+
+if __name__ == '__main__':
+    engine = SignatureDetectionEngine()
+    example_packet = {
+        'protocol': 'tcp',
+        'src_port': 23,
+        'dst_ip': '10.0.0.1',
+        'src_ip': '10.0.0.5',
+    }
+    result = engine.inspect(example_packet)
+    if result:
+        print(json.dumps(result, indent=2))
+    else:
+        print('No signature match found.')
