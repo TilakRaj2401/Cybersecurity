@@ -53,6 +53,19 @@ class TestSignatureEngine(unittest.TestCase):
         self.assertEqual(result['rule_id'], 'SIG-200')
 
     @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_json_rules_are_loaded(self):
+        """The engine should load rule metadata from the JSON signature file."""
+        tmp_path = os.path.join(PROJECT_ROOT, 'Backend', 'sig.json')
+        self.engine.signatures = {}
+        self.engine.load_rules_from_file(tmp_path)
+        self.assertIn(('tcp', 23), self.engine.signatures)
+        self.assertEqual(self.engine.signatures[('tcp', 23)]['rule_id'], 'SIG-101')
+        packet = {'protocol': 'tcp', 'src_port': 23, 'src_ip': '10.0.0.5', 'dst_ip': '10.0.0.1'}
+        result = self.engine.inspect(packet)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['rule_id'], 'SIG-101')
+
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
     def test_all_configured_signatures_are_detectable(self):
         """Every configured protocol and port pair should produce an alert."""
         self.assertEqual(len(self.engine.signatures), 30)

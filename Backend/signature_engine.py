@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 
 class SignatureDetectionEngine:
     """Check incoming packets against known IoT security signature rules."""
@@ -80,7 +83,10 @@ class SignatureDetectionEngine:
         },
     }
 
-    def __init__(self):
+    def __init__(self, signature_file: str | Path | None = None):
+        self.default_signature_file = (
+            Path(signature_file) if signature_file else Path(__file__).with_name('sig.json')
+        )
         # Known signatures: (protocol, service port) -> alert details.
         self.signatures = {
             ('tcp', 23): {
@@ -177,6 +183,7 @@ class SignatureDetectionEngine:
              'msg': 'BACnet Building Automation Traffic Detected',
               'severity': 'Critical'},
         }
+        self.load_rules_from_file(self.default_signature_file)
         self.payload_signatures = [
             {
                 'rule_id': 'SIG-200',
@@ -205,6 +212,27 @@ class SignatureDetectionEngine:
                 ),
             },
         ]
+
+    def load_rules_from_file(self, file_path: str | Path):
+        """Load signature rules from a JSON file and normalize them to tuple keys."""
+        path = Path(file_path)
+        if not path.exists():
+            return self.signatures
+
+        with path.open('r', encoding='utf-8') as handle:
+            raw_rules = json.load(handle)
+
+        parsed_rules = {}
+        for key, rule in raw_rules.items():
+            protocol, port_text = key.split(':', 1)
+            parsed_rules[(protocol.lower(), int(port_text))] = {
+                'rule_id': rule['rule_id'],
+                'msg': rule['msg'],
+                'severity': rule['severity'],
+            }
+
+        self.signatures = parsed_rules
+        return self.signatures
 
     @classmethod
     def load_legacy_dataset_rules(cls, dataset_name: str = 'NSL-KDD') -> dict:
