@@ -222,7 +222,7 @@ class SignatureDetectionEngine:
         with path.open('r', encoding='utf-8') as handle:
             raw_rules = json.load(handle)
 
-        parsed_rules = {}
+        parsed_rules = dict(self.signatures)
         for key, rule in raw_rules.items():
             protocol, port_text = key.split(':', 1)
             parsed_rules[(protocol.lower(), int(port_text))] = {
@@ -261,71 +261,87 @@ class SignatureDetectionEngine:
         if not payload:
             return None
 
-        for signature in self.payload_signatures:
-            if any(keyword in payload for keyword in signature['keywords']):
+        for rule in self.payload_signatures:
+            if any(keyword in payload for keyword in rule['keywords']):
                 return {
-                    'rule_id': signature['rule_id'],
-                    'message': signature['message'],
-                    'severity': signature['severity'],
+                    'rule_id': rule['rule_id'],
+                    'message': rule['message'],
+                    'severity': rule['severity'],
                     'src_ip': packet.get('src_ip'),
                     'dst_ip': packet.get('dst_ip'),
                 }
         return None
 
-    def inspect(self, packet: dict) -> dict:
-        """Return a detection alert if the packet matches a known signature."""
+    def list_all_signatures(self) -> list[dict]:
+        """Return the full configured signature catalog in a readable format."""
+        signatures = []
+        for key, rule in self.signatures.items():
+            protocol, port = key
+            signatures.append({
+                'rule_id': rule['rule_id'],
+                'protocol': protocol,
+                'port': port,
+                'message': rule['msg'],
+                'severity': rule['severity'],
+            })
+        return signatures
+
+    def inspect_all(self, packet: dict) -> list[dict]:
+        """Return every signature match found in the packet."""
+        all_matches = []
+
         payload_match = self._check_payload_signatures(packet)
         if payload_match:
-            return payload_match
+            all_matches.append(payload_match)
 
         protocol = str(packet.get('protocol', '')).lower()
-        ports = (packet.get('src_port'), packet.get('dst_port'))
-        rule = next(
-            (self.signatures[(protocol, port)]
-            for port in ports
-            if (protocol, port)
-            in self.signatures),
-            None,
-        )
-        if rule:
-            return {
+        seen = set()
+        for port in (packet.get('src_port'), packet.get('dst_port')):
+            if port is None:
+                continue
+            rule = self.signatures.get((protocol, port))
+            if rule is None:
+                continue
+            match = {
                 'rule_id': rule['rule_id'],
                 'message': rule['msg'],
                 'severity': rule['severity'],
                 'src_ip': packet.get('src_ip'),
-                'dst_ip': packet.get('dst_ip')
+                'dst_ip': packet.get('dst_ip'),
             }
+            dedupe_key = (match['rule_id'], match['message'], match['severity'])
+            if dedupe_key not in seen:
+                all_matches.append(match)
+                seen.add(dedupe_key)
 
-        if packet.get('length', 0) > 400 and protocol == 'udp':
-            return {
+        if not all_matches and packet.get('length', 0) > 400 and protocol == 'udp':
+            all_matches.append({
                 'rule_id': 'SIG-103',
                 'message': 'Potential UDP Flood / Oversized Payload',
                 'severity': 'High',
                 'src_ip': packet.get('src_ip'),
-                'dst_ip': packet.get('dst_ip')
-            }
-        return None
+                'dst_ip': packet.get('dst_ip'),
+            })
+
+        return all_matches
+
+    def inspect(self, packet: dict) -> dict | None:
+        """Return the first detection alert if the packet matches a known signature."""
+        packet_matches = self.inspect_all(packet)
+        return packet_matches[0] if packet_matches else None
 
     def has_known_signature(self, packet: dict) -> bool:
-        """Return True when a packet matches a configured signature."""
-        if self._check_payload_signatures(packet) is not None:
-            return True
-
-        protocol = str(packet.get('protocol', '')).lower()
-        return any((protocol, port) in self.signatures
-        for port in (packet.get('src_port'), packet.get('dst_port')))
+        """Return True when a packet matches at least one configured signature."""
+        return bool(self.inspect_all(packet))
 
 
 if __name__ == '__main__':
     engine = SignatureDetectionEngine()
-    example_packet = {
-        'protocol': 'tcp',
-        'src_port': 23,
-        'dst_ip': '10.0.0.1',
-        'src_ip': '10.0.0.5',
-    }
-    result = engine.inspect(example_packet)
-    if result:
-        print(json.dumps(result, indent=2))
-    else:
-        print('No signature match found.')
+    all_signature_rules = engine.list_all_signatures()
+    print(f'Loaded {len(all_signature_rules)} configured signatures:')
+    for rule_detail in all_signature_rules:
+        print(
+            f"{rule_detail['rule_id']} | {rule_detail['protocol'].upper()}:"
+            f"{rule_detail['port']} | {rule_detail['severity']} | "
+            f"{rule_detail['message']}"
+        )

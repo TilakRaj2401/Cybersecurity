@@ -84,6 +84,44 @@ class TestSignatureEngine(unittest.TestCase):
                 self.assertEqual(result['rule_id'], rule['rule_id'])
                 self.assertTrue(self.engine.has_known_signature(packet))
 
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_inspect_all_returns_every_matching_signature(self):
+        """A packet touching multiple known ports should surface every signature match."""
+        packet = {
+            'protocol': 'tcp',
+            'src_port': 23,
+            'dst_port': 21,
+            'src_ip': '10.0.0.5',
+            'dst_ip': '10.0.0.1',
+        }
+        matches = self.engine.inspect_all(packet)
+        self.assertEqual({match['rule_id'] for match in matches}, {'SIG-101', 'SIG-104'})
+
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_json_file_is_merged_without_losing_default_rules(self):
+        """Loading JSON rules should add or override entries without discarding defaults."""
+        engine = SignatureDetectionEngine()
+        engine.signatures = {
+            ('tcp', 23): {
+                'rule_id': 'SIG-101',
+                'msg': 'Telnet',
+                'severity': 'Medium',
+            }
+        }
+        engine.load_rules_from_file(
+            os.path.join(PROJECT_ROOT, 'Backend', 'sig.json')
+        )
+        self.assertIn(('tcp', 23), engine.signatures)
+        self.assertIn(('tcp', 22), engine.signatures)
+
+    @unittest.skipIf(_SIG_ENGINE_MISSING, f"signature_engine missing: {_SIG_ENGINE_MISSING}")
+    def test_list_all_signatures_returns_every_rule(self):
+        """The engine should expose the full signature catalog, not only a sample match."""
+        signatures = self.engine.list_all_signatures()
+        self.assertEqual(len(signatures), 30)
+        self.assertEqual(signatures[0]['rule_id'], 'SIG-101')
+        self.assertEqual(signatures[-1]['rule_id'], 'SIG-133')
+
 
 if __name__ == '__main__':
     unittest.main()
