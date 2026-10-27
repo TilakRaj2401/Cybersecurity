@@ -50,7 +50,7 @@ class IncidentLogger:
 def display_events_table(events):
     """Formats and prints the list of security event tuples as a clean CLI table."""
     if not events:
-        print("No events found in database.")
+        print("No events found in database.", flush=True)
         return
 
     headers = ["ID", "Timestamp", "Rule ID", "Severity", "Source IP", "Message"]
@@ -66,7 +66,7 @@ def display_events_table(events):
             f"{str(value):<{width}}" for value, width in zip(values, col_widths)
         )
 
-    print(format_row(headers))
-    print("-+-".join("-" * width for width in col_widths))
+    print(format_row(headers), flush=True)
+    print("-+-".join("-" * width for width in col_widths), flush=True)
     for event in events:
-        print(format_row(event))
+        print(format_row(event), flush=True)

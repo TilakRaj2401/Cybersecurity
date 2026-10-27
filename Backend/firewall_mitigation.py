@@ -113,7 +113,10 @@ class ActiveMitigationEngine:
 
 def run_demo() -> list[str]:
     """Print ten randomly selected example IPs and simulate blocking them."""
-    from signature_engine import SignatureDetectionEngine
+    if __package__:
+        from .signature_engine import SignatureDetectionEngine
+    else:
+        from signature_engine import SignatureDetectionEngine
 
     rng = random.SystemRandom()
     example_networks = ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")
